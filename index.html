@@ -1,0 +1,29 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>手机转盘抽奖</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="bg-orb orb-a" aria-hidden="true"></div>
+  <div class="bg-orb orb-b" aria-hidden="true"></div>
+
+  <main class="mobile-app">
+    <section class="wheel-wrap">
+      <div class="pointer" aria-hidden="true"></div>
+      <canvas id="wheel" width="560" height="560"></canvas>
+      <div class="hub"></div>
+    </section>
+
+    <p id="result" class="result" aria-live="polite"></p>
+
+    <button id="spinBtn" class="spin-btn" type="button">开始转动</button>
+  </main>
+
+  <a class="settings-fab" href="./setup.html" aria-label="设置奖项">设置</a>
+
+  <script src="./script.js"></script>
+</body>
+</html>
