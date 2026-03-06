@@ -59,6 +59,7 @@ button {
   background: rgba(255, 255, 255, 0.9);
   color: var(--text);
   padding: 0 12px;
+  font: inherit;
 }
 
 .item-list {
@@ -110,6 +111,178 @@ button {
   border: 0;
 }
 
+.account-entry {
+  margin-top: 10px;
+  width: 100%;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(246, 246, 249, 0.92) 100%);
+  box-shadow: 0 8px 16px rgba(21, 21, 24, 0.1);
+  font-weight: 700;
+}
+
+.account-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+.account-modal.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.account-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 12, 0.26);
+  backdrop-filter: blur(4px);
+}
+
+.account-sheet {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0.96);
+  width: min(94vw, 480px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 24px 50px rgba(13, 13, 15, 0.22);
+  backdrop-filter: blur(16px) saturate(120%);
+  padding: 14px;
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.account-modal.show .account-sheet {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sheet-head h2 {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.sheet-close {
+  width: 74px;
+  border-radius: 999px;
+  border-color: rgba(29, 29, 31, 0.14);
+  background: rgba(255, 255, 255, 0.98);
+  font-weight: 700;
+}
+
+.account-info {
+  margin: 8px 2px 10px;
+  font-size: 13px;
+  color: rgba(29, 29, 31, 0.72);
+}
+
+.account-row {
+  display: grid;
+  grid-template-columns: 1fr 92px;
+  gap: 8px;
+}
+
+.account-row + .account-row {
+  margin-top: 8px;
+}
+
+.picker {
+  position: relative;
+}
+
+.picker-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 34px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(247, 247, 250, 0.95) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.picker-btn:focus-visible {
+  outline: 2px solid rgba(0, 122, 255, 0.42);
+  outline-offset: 0;
+}
+
+.select-chevron {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 1.8px solid #555;
+  border-bottom: 1.8px solid #555;
+  transform: translateY(-62%) rotate(45deg);
+  pointer-events: none;
+}
+
+.picker-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: 14px;
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 26px rgba(15, 15, 17, 0.18);
+  backdrop-filter: blur(12px);
+  max-height: 188px;
+  overflow: auto;
+}
+
+.picker-item {
+  width: 100%;
+  height: 38px;
+  border: 0;
+  border-radius: 10px;
+  text-align: left;
+  background: transparent;
+  font-weight: 600;
+  position: relative;
+  padding-right: 30px;
+}
+
+.picker-item::after {
+  content: '\2713';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  font-weight: 800;
+  color: #007aff;
+  opacity: 0;
+}
+
+.picker-item.active {
+  background: rgba(0, 122, 255, 0.12);
+  color: #005ecb;
+}
+
+.picker-item.active::after {
+  opacity: 1;
+}
+
+.picker-item:active {
+  background: rgba(29, 29, 31, 0.08);
+}
+
 .back {
   display: inline-flex;
   align-items: center;
@@ -123,3 +296,4 @@ button {
   background: rgba(255, 255, 255, 0.84);
   border: 1px solid rgba(255, 255, 255, 0.62);
 }
+
