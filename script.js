@@ -1,7 +1,8 @@
-﻿const STORAGE_KEY = 'wheel_items_v1';
+﻿const STORAGE_KEY_BASE = 'wheel_items_v1';
+const ACCOUNT_KEY = 'wheel_account_v1';
+const DEFAULT_ACCOUNT = '默认账号';
 const DEFAULT_ITEMS = ['谢谢参与', '奶茶', '电影票', '红包'];
-const CLOUD_TABLE = 'wheel_config';
-const CLOUD_ROW_ID = 1;
+const CLOUD_TABLE = 'wheel_profiles';
 
 const wheel = document.getElementById('wheel');
 const ctx = wheel.getContext('2d');
@@ -11,7 +12,8 @@ const resultEl = document.getElementById('result');
 const wheelSize = wheel.width;
 const radius = wheelSize / 2;
 
-let items = loadItems();
+let currentAccount = loadCurrentAccount();
+let items = loadItemsForAccount(currentAccount);
 let currentRotation = 0;
 let spinning = false;
 
@@ -23,9 +25,22 @@ function normalizeItems(list) {
   return cleaned.length >= 2 ? cleaned : null;
 }
 
-function loadItems() {
+function normalizeAccountName(value) {
+  return String(value ?? '').trim().slice(0, 24);
+}
+
+function storageKeyForAccount(accountName) {
+  return `${STORAGE_KEY_BASE}__${accountName}`;
+}
+
+function loadCurrentAccount() {
+  const saved = normalizeAccountName(localStorage.getItem(ACCOUNT_KEY));
+  return saved || DEFAULT_ACCOUNT;
+}
+
+function loadItemsForAccount(accountName) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKeyForAccount(accountName));
     if (!raw) {
       return [...DEFAULT_ITEMS];
     }
@@ -36,7 +51,7 @@ function loadItems() {
   }
 }
 
-async function pullItemsFromCloud() {
+async function pullItemsFromCloud(accountName) {
   if (!window.supabaseClient || spinning) {
     return false;
   }
@@ -45,7 +60,7 @@ async function pullItemsFromCloud() {
     const { data, error } = await window.supabaseClient
       .from(CLOUD_TABLE)
       .select('items')
-      .eq('id', CLOUD_ROW_ID)
+      .eq('account_name', accountName)
       .single();
 
     if (error || !data) {
@@ -60,7 +75,7 @@ async function pullItemsFromCloud() {
     const changed = JSON.stringify(cloudItems) !== JSON.stringify(items);
     if (changed) {
       items = cloudItems;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      localStorage.setItem(storageKeyForAccount(accountName), JSON.stringify(items));
     }
 
     return changed;
@@ -73,7 +88,11 @@ function refreshLocalItems() {
   if (spinning) {
     return;
   }
-  items = loadItems();
+  const latestAccount = loadCurrentAccount();
+  if (latestAccount !== currentAccount) {
+    currentAccount = latestAccount;
+  }
+  items = loadItemsForAccount(currentAccount);
   drawWheel();
 }
 
@@ -82,7 +101,7 @@ async function refreshItems() {
     return;
   }
   refreshLocalItems();
-  const changed = await pullItemsFromCloud();
+  const changed = await pullItemsFromCloud(currentAccount);
   if (changed) {
     drawWheel();
   }
@@ -190,7 +209,10 @@ function spin() {
 }
 
 window.addEventListener('storage', (e) => {
-  if (e.key === STORAGE_KEY) {
+  if (!e.key) {
+    return;
+  }
+  if (e.key === ACCOUNT_KEY || e.key.startsWith(`${STORAGE_KEY_BASE}__`)) {
     refreshLocalItems();
   }
 });
@@ -204,7 +226,7 @@ document.addEventListener('visibilitychange', () => {
 spinBtn.addEventListener('click', spin);
 
 (async () => {
-  await pullItemsFromCloud();
+  await pullItemsFromCloud(currentAccount);
   drawWheel();
   clearResult();
 })();

@@ -4,13 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>设置奖项</title>
-  <link rel="stylesheet" href="./setup.css" />
+  <link rel="stylesheet" href="./setup.css?v=20260306-4" />
 </head>
 <body>
   <main class="setup-app">
     <section class="panel">
       <h1>设置</h1>
-      <p class="sub">在这里配置内容和数量，保存后会同步到转盘页面。</p>
+      <p class="sub">在这里配置内容和数量，保存后会同步到当前账号。</p>
 
       <div class="row">
         <input id="labelInput" type="text" placeholder="输入内容，例如：奶茶" maxlength="20" />
@@ -24,13 +24,43 @@
         <button id="saveBtn" class="primary" type="button">保存到转盘</button>
         <button id="resetBtn" type="button">恢复默认</button>
       </div>
+
+      <button id="accountOpenBtn" class="account-entry" type="button">账号</button>
     </section>
 
     <a class="back" href="./index.html">返回转盘</a>
   </main>
 
+  <div id="accountModal" class="account-modal" aria-hidden="true">
+    <div id="accountBackdrop" class="account-backdrop"></div>
+    <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
+      <div class="sheet-head">
+        <h2 id="accountTitle">账号管理</h2>
+        <button id="accountCloseBtn" class="sheet-close" type="button">完成</button>
+      </div>
+
+      <p id="accountInfo" class="account-info">当前账号：默认账号</p>
+
+      <div class="account-row">
+        <div id="accountPicker" class="picker">
+          <button id="accountPickerBtn" class="picker-btn" type="button" aria-expanded="false">
+            <span id="accountPickerLabel">默认账号</span>
+            <span class="select-chevron" aria-hidden="true"></span>
+          </button>
+          <ul id="accountPickerList" class="picker-list" hidden></ul>
+        </div>
+        <button id="switchAccountBtn" type="button">切换</button>
+      </div>
+
+      <div class="account-row">
+        <input id="newAccountInput" type="text" placeholder="输入用户名" maxlength="24" />
+        <button id="registerAccountBtn" type="button">注册</button>
+      </div>
+    </section>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./supabase-client.js"></script>
-  <script src="./setup.js"></script>
+  <script src="./supabase-client.js?v=20260306-4"></script>
+  <script src="./setup.js?v=20260306-4"></script>
 </body>
 </html>
