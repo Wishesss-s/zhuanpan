@@ -5,6 +5,7 @@
   --glass: rgba(255, 255, 255, 0.72);
   --shadow: 0 16px 42px rgba(22, 22, 24, 0.15);
   --wheel-size: min(88vw, 400px);
+  --result-offset: 90px;
 }
 
 * {
@@ -71,15 +72,15 @@ body {
 .result {
   position: absolute;
   left: 50%;
-  bottom: calc(50% + (var(--wheel-size) / 2) + 14px);
+  bottom: calc(50% + (var(--wheel-size) / 2) + var(--result-offset));
   transform: translateX(-50%);
   margin: 0;
-  min-height: 34px;
+  min-height: 42px;
   width: min(92vw, 420px);
   text-align: center;
   font-size: clamp(23px, 6vw, 33px);
   line-height: 1.18;
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: -0.01em;
   opacity: 0;
   transition: opacity 220ms ease;
@@ -87,6 +88,49 @@ body {
 
 .result.show {
   opacity: 1;
+}
+
+.result.thinking {
+  font-size: clamp(14px, 3.4vw, 18px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: rgba(29, 29, 31, 0.7);
+  animation: thinking-breathe 900ms ease-in-out infinite alternate;
+}
+
+.result.pop-in {
+  animation: result-pop 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes thinking-breathe {
+  from {
+    opacity: 0.5;
+    transform: translateX(-50%) scale(0.96);
+    filter: blur(0.2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes result-pop {
+  0% {
+    transform: translateX(-50%) scale(0.74);
+    opacity: 0.15;
+    filter: blur(4px);
+  }
+  65% {
+    transform: translateX(-50%) scale(1.08);
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
 }
 
 #wheel {

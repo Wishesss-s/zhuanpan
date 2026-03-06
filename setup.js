@@ -1,5 +1,7 @@
 ﻿const STORAGE_KEY = 'wheel_items_v1';
 const DEFAULT_ITEMS = ['谢谢参与', '奶茶', '电影票', '红包'];
+const CLOUD_TABLE = 'wheel_config';
+const CLOUD_ROW_ID = 1;
 
 const labelInput = document.getElementById('labelInput');
 const countInput = document.getElementById('countInput');
@@ -10,6 +12,14 @@ const itemList = document.getElementById('itemList');
 
 let items = loadItems();
 
+function normalizeItems(list) {
+  if (!Array.isArray(list)) {
+    return null;
+  }
+  const cleaned = list.map((v) => String(v).trim()).filter(Boolean);
+  return cleaned.length >= 2 ? cleaned : null;
+}
+
 function loadItems() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -17,25 +27,72 @@ function loadItems() {
       return [...DEFAULT_ITEMS];
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length < 2) {
-      return [...DEFAULT_ITEMS];
-    }
-    const cleaned = parsed.map((v) => String(v).trim()).filter(Boolean);
-    return cleaned.length >= 2 ? cleaned : [...DEFAULT_ITEMS];
+    return normalizeItems(parsed) ?? [...DEFAULT_ITEMS];
   } catch {
     return [...DEFAULT_ITEMS];
   }
 }
 
-function saveItems() {
+async function pullItemsFromCloud() {
+  if (!window.supabaseClient) {
+    return false;
+  }
+
+  try {
+    const { data, error } = await window.supabaseClient
+      .from(CLOUD_TABLE)
+      .select('items')
+      .eq('id', CLOUD_ROW_ID)
+      .single();
+
+    if (error || !data) {
+      return false;
+    }
+
+    const cloudItems = normalizeItems(data.items);
+    if (!cloudItems) {
+      return false;
+    }
+
+    items = cloudItems;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function saveItems() {
   if (items.length < 2) {
     return;
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  saveBtn.textContent = '已保存';
+
+  saveBtn.disabled = true;
+
+  try {
+    if (!window.supabaseClient) {
+      throw new Error('Supabase not configured');
+    }
+
+    const { error } = await window.supabaseClient
+      .from(CLOUD_TABLE)
+      .upsert({ id: CLOUD_ROW_ID, items, updated_at: new Date().toISOString() });
+
+    if (error) {
+      throw error;
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    saveBtn.textContent = '已保存到云端';
+  } catch {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    saveBtn.textContent = '云端失败，已保存到本机';
+  }
+
   setTimeout(() => {
     saveBtn.textContent = '保存到转盘';
-  }, 1000);
+    saveBtn.disabled = false;
+  }, 1200);
 }
 
 function render() {
@@ -102,4 +159,7 @@ labelInput.addEventListener('keydown', (e) => {
   }
 });
 
-render();
+(async () => {
+  await pullItemsFromCloud();
+  render();
+})();
