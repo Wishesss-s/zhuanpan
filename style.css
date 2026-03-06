@@ -5,7 +5,7 @@
   --glass: rgba(255, 255, 255, 0.72);
   --shadow: 0 16px 42px rgba(22, 22, 24, 0.15);
   --wheel-size: min(88vw, 400px);
-  --result-offset: 90px;
+  --result-offset: 38px;
 }
 
 * {
@@ -218,3 +218,4 @@ body {
 .settings-fab:active {
   transform: scale(0.98);
 }
+
