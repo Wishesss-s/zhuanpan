@@ -1,6 +1,7 @@
 ﻿const STORAGE_KEY_BASE = 'wheel_items_v1';
 const ACCOUNT_KEY = 'wheel_account_v1';
-const DEFAULT_ACCOUNT = '默认账号';
+const DEFAULT_ACCOUNT = '默认转盘';
+const LEGACY_DEFAULT_ACCOUNT = '默认账号';
 const DEFAULT_ITEMS = ['谢谢参与', '奶茶', '电影票', '红包'];
 const CLOUD_TABLE = 'wheel_profiles';
 
@@ -8,6 +9,7 @@ const wheel = document.getElementById('wheel');
 const ctx = wheel.getContext('2d');
 const spinBtn = document.getElementById('spinBtn');
 const resultEl = document.getElementById('result');
+const accountBadge = document.getElementById('accountBadge');
 
 const wheelSize = wheel.width;
 const radius = wheelSize / 2;
@@ -16,6 +18,9 @@ let currentAccount = loadCurrentAccount();
 let items = loadItemsForAccount(currentAccount);
 let currentRotation = 0;
 let spinning = false;
+let highlightedWinner = -1;
+let highlightTimer = null;
+let audioContext = null;
 
 function normalizeItems(list) {
   if (!Array.isArray(list)) {
@@ -26,7 +31,11 @@ function normalizeItems(list) {
 }
 
 function normalizeAccountName(value) {
-  return String(value ?? '').trim().slice(0, 24);
+  const cleaned = String(value ?? '').trim().slice(0, 24);
+  if (cleaned === LEGACY_DEFAULT_ACCOUNT) {
+    return DEFAULT_ACCOUNT;
+  }
+  return cleaned;
 }
 
 function storageKeyForAccount(accountName) {
@@ -34,13 +43,25 @@ function storageKeyForAccount(accountName) {
 }
 
 function loadCurrentAccount() {
-  const saved = normalizeAccountName(localStorage.getItem(ACCOUNT_KEY));
-  return saved || DEFAULT_ACCOUNT;
+  const savedRaw = String(localStorage.getItem(ACCOUNT_KEY) ?? '').trim();
+  const saved = normalizeAccountName(savedRaw);
+  if (saved) {
+    if (savedRaw !== saved) {
+      localStorage.setItem(ACCOUNT_KEY, saved);
+    }
+    return saved;
+  }
+  localStorage.setItem(ACCOUNT_KEY, DEFAULT_ACCOUNT);
+  return DEFAULT_ACCOUNT;
 }
 
 function loadItemsForAccount(accountName) {
   try {
-    const raw = localStorage.getItem(storageKeyForAccount(accountName));
+    const key = storageKeyForAccount(accountName);
+    let raw = localStorage.getItem(key);
+    if (!raw && accountName === DEFAULT_ACCOUNT) {
+      raw = localStorage.getItem(storageKeyForAccount(LEGACY_DEFAULT_ACCOUNT));
+    }
     if (!raw) {
       return [...DEFAULT_ITEMS];
     }
@@ -51,23 +72,92 @@ function loadItemsForAccount(accountName) {
   }
 }
 
+function updateAccountBadge() {
+  accountBadge.textContent = `转盘：${currentAccount}`;
+}
+
+function safeVibrate(pattern) {
+  if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+    navigator.vibrate(pattern);
+  }
+}
+
+function getAudioContext() {
+  if (audioContext) {
+    return audioContext;
+  }
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) {
+    return null;
+  }
+  audioContext = new Ctor();
+  return audioContext;
+}
+
+function playTone(frequency, durationMs, gainValue) {
+  const ac = getAudioContext();
+  if (!ac) {
+    return;
+  }
+
+  if (ac.state === 'suspended') {
+    ac.resume().catch(() => {});
+  }
+
+  const now = ac.currentTime;
+  const duration = durationMs / 1000;
+  const oscillator = ac.createOscillator();
+  const gainNode = ac.createGain();
+
+  oscillator.type = 'sine';
+  oscillator.frequency.setValueAtTime(frequency, now);
+
+  gainNode.gain.setValueAtTime(0.0001, now);
+  gainNode.gain.exponentialRampToValueAtTime(gainValue, now + 0.01);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  oscillator.connect(gainNode);
+  gainNode.connect(ac.destination);
+  oscillator.start(now);
+  oscillator.stop(now + duration + 0.02);
+}
+
+function playStartFeedback() {
+  safeVibrate(16);
+  playTone(560, 70, 0.018);
+}
+
+function playResultFeedback() {
+  safeVibrate([22, 28, 20]);
+  playTone(740, 80, 0.02);
+  setTimeout(() => {
+    playTone(980, 90, 0.016);
+  }, 85);
+}
+
+async function fetchCloudItemsByName(accountName) {
+  const { data, error } = await window.supabaseClient
+    .from(CLOUD_TABLE)
+    .select('items')
+    .eq('account_name', accountName)
+    .single();
+  if (error || !data) {
+    return null;
+  }
+  const cloudItems = normalizeItems(data.items);
+  return cloudItems || null;
+}
+
 async function pullItemsFromCloud(accountName) {
   if (!window.supabaseClient || spinning) {
     return false;
   }
 
   try {
-    const { data, error } = await window.supabaseClient
-      .from(CLOUD_TABLE)
-      .select('items')
-      .eq('account_name', accountName)
-      .single();
-
-    if (error || !data) {
-      return false;
+    let cloudItems = await fetchCloudItemsByName(accountName);
+    if (!cloudItems && accountName === DEFAULT_ACCOUNT) {
+      cloudItems = await fetchCloudItemsByName(LEGACY_DEFAULT_ACCOUNT);
     }
-
-    const cloudItems = normalizeItems(data.items);
     if (!cloudItems) {
       return false;
     }
@@ -88,10 +178,13 @@ function refreshLocalItems() {
   if (spinning) {
     return;
   }
+
   const latestAccount = loadCurrentAccount();
   if (latestAccount !== currentAccount) {
     currentAccount = latestAccount;
+    updateAccountBadge();
   }
+
   items = loadItemsForAccount(currentAccount);
   drawWheel();
 }
@@ -100,6 +193,7 @@ async function refreshItems() {
   if (spinning) {
     return;
   }
+
   refreshLocalItems();
   const changed = await pullItemsFromCloud(currentAccount);
   if (changed) {
@@ -108,6 +202,9 @@ async function refreshItems() {
 }
 
 function sliceColor(i) {
+  if (i === highlightedWinner) {
+    return '#ffe9b3';
+  }
   return i % 2 === 0 ? '#fbfbfc' : '#f3f3f6';
 }
 
@@ -130,8 +227,8 @@ function drawWheel() {
     ctx.fillStyle = sliceColor(i);
     ctx.fill();
 
-    ctx.strokeStyle = 'rgba(29, 29, 31, 0.32)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = i === highlightedWinner ? 'rgba(255, 157, 0, 0.85)' : 'rgba(29, 29, 31, 0.32)';
+    ctx.lineWidth = i === highlightedWinner ? 2.4 : 1;
     ctx.stroke();
 
     const textAngle = start + arc / 2;
@@ -175,14 +272,26 @@ function clearResult() {
   resultEl.classList.remove('thinking', 'pop-in', 'show');
 }
 
+function clearHighlight() {
+  if (highlightTimer) {
+    clearTimeout(highlightTimer);
+    highlightTimer = null;
+  }
+  highlightedWinner = -1;
+}
+
 function spin() {
   if (spinning || items.length < 2) {
     return;
   }
 
+  clearHighlight();
+  drawWheel();
+
   spinning = true;
   spinBtn.disabled = true;
   showThinking();
+  playStartFeedback();
 
   const total = items.length;
   const sliceDeg = 360 / total;
@@ -202,7 +311,17 @@ function spin() {
   const onDone = () => {
     spinning = false;
     spinBtn.disabled = false;
+
+    highlightedWinner = winner;
+    drawWheel();
     showResult(winnerText);
+    playResultFeedback();
+
+    highlightTimer = setTimeout(() => {
+      highlightedWinner = -1;
+      drawWheel();
+      highlightTimer = null;
+    }, 1300);
   };
 
   wheel.addEventListener('transitionend', onDone, { once: true });
@@ -226,6 +345,7 @@ document.addEventListener('visibilitychange', () => {
 spinBtn.addEventListener('click', spin);
 
 (async () => {
+  updateAccountBadge();
   await pullItemsFromCloud(currentAccount);
   drawWheel();
   clearResult();

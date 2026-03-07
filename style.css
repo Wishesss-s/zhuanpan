@@ -45,6 +45,30 @@ body {
   background: rgba(255, 202, 176, 0.22);
 }
 
+.account-badge {
+  position: fixed;
+  left: 16px;
+  top: calc(16px + env(safe-area-inset-top));
+  z-index: 5;
+  margin: 0;
+  max-width: 60vw;
+  height: 42px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d1d1f;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  box-shadow: 0 10px 20px rgba(17, 17, 18, 0.14);
+  backdrop-filter: blur(8px) saturate(120%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mobile-app {
   position: relative;
   z-index: 1;
@@ -218,4 +242,3 @@ body {
 .settings-fab:active {
   transform: scale(0.98);
 }
-

@@ -1,7 +1,8 @@
 ﻿const STORAGE_KEY_BASE = 'wheel_items_v1';
 const ACCOUNT_KEY = 'wheel_account_v1';
 const ACCOUNT_LIST_KEY = 'wheel_accounts_v1';
-const DEFAULT_ACCOUNT = '默认账号';
+const DEFAULT_ACCOUNT = '默认转盘';
+const LEGACY_DEFAULT_ACCOUNT = '默认账号';
 const DEFAULT_ITEMS = ['谢谢参与', '奶茶', '电影票', '红包'];
 const CLOUD_TABLE = 'wheel_profiles';
 
@@ -28,6 +29,12 @@ let accounts = loadAccountList();
 let currentAccount = loadCurrentAccount();
 let pendingAccount = currentAccount;
 let items = loadItemsForAccount(currentAccount);
+const initialSavedAccount = normalizeAccountName(localStorage.getItem(ACCOUNT_KEY));
+let shouldAutoPickInitialWheel = !initialSavedAccount;
+
+let dragFromIndex = null;
+let touchDragIndex = null;
+let touchTargetIndex = null;
 
 function normalizeItems(list) {
   if (!Array.isArray(list)) {
@@ -38,7 +45,11 @@ function normalizeItems(list) {
 }
 
 function normalizeAccountName(value) {
-  return String(value ?? '').trim().slice(0, 24);
+  const cleaned = String(value ?? '').trim().slice(0, 24);
+  if (cleaned === LEGACY_DEFAULT_ACCOUNT) {
+    return DEFAULT_ACCOUNT;
+  }
+  return cleaned;
 }
 
 function storageKeyForAccount(accountName) {
@@ -49,9 +60,10 @@ function loadAccountList() {
   try {
     const raw = localStorage.getItem(ACCOUNT_LIST_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    const cleaned = Array.isArray(parsed)
-      ? [...new Set(parsed.map(normalizeAccountName).filter(Boolean))]
+    const mapped = Array.isArray(parsed)
+      ? parsed.map((name) => normalizeAccountName(name)).filter(Boolean)
       : [];
+    const cleaned = [...new Set(mapped)];
     if (!cleaned.includes(DEFAULT_ACCOUNT)) {
       cleaned.unshift(DEFAULT_ACCOUNT);
     }
@@ -66,8 +78,12 @@ function persistAccountList() {
 }
 
 function loadCurrentAccount() {
-  const saved = normalizeAccountName(localStorage.getItem(ACCOUNT_KEY));
+  const savedRaw = String(localStorage.getItem(ACCOUNT_KEY) ?? '').trim();
+  const saved = normalizeAccountName(savedRaw);
   if (saved && accounts.includes(saved)) {
+    if (savedRaw !== saved) {
+      localStorage.setItem(ACCOUNT_KEY, saved);
+    }
     return saved;
   }
   localStorage.setItem(ACCOUNT_KEY, accounts[0]);
@@ -77,12 +93,15 @@ function loadCurrentAccount() {
 function setCurrentAccount(name) {
   currentAccount = name;
   localStorage.setItem(ACCOUNT_KEY, currentAccount);
-  accountInfo.textContent = `当前账号：${currentAccount}`;
+  accountInfo.textContent = `当前转盘：${currentAccount}`;
 }
 
 function loadItemsForAccount(accountName) {
   try {
-    const raw = localStorage.getItem(storageKeyForAccount(accountName));
+    let raw = localStorage.getItem(storageKeyForAccount(accountName));
+    if (!raw && accountName === DEFAULT_ACCOUNT) {
+      raw = localStorage.getItem(storageKeyForAccount(LEGACY_DEFAULT_ACCOUNT));
+    }
     if (!raw) {
       return [...DEFAULT_ITEMS];
     }
@@ -97,7 +116,9 @@ function persistItemsForAccount(accountName, accountItems) {
   localStorage.setItem(storageKeyForAccount(accountName), JSON.stringify(accountItems));
 }
 
-function openAccountModal() {
+async function openAccountModal() {
+  await syncAccountsFromCloud();
+  renderAccountState();
   accountModal.classList.add('show');
   accountModal.setAttribute('aria-hidden', 'false');
 }
@@ -154,7 +175,7 @@ function renderAccountPicker() {
   setPendingAccount(pendingAccount);
 }
 
-async function pullItemsFromCloud(accountName) {
+async function syncAccountsFromCloud() {
   if (!window.supabaseClient) {
     return false;
   }
@@ -162,15 +183,74 @@ async function pullItemsFromCloud(accountName) {
   try {
     const { data, error } = await window.supabaseClient
       .from(CLOUD_TABLE)
-      .select('items')
-      .eq('account_name', accountName)
-      .single();
+      .select('account_name, updated_at')
+      .order('updated_at', { ascending: false });
 
-    if (error || !data) {
+    if (error || !Array.isArray(data)) {
       return false;
     }
 
-    const cloudItems = normalizeItems(data.items);
+    const cloudNames = [
+      ...new Set(data.map((row) => normalizeAccountName(row.account_name)).filter(Boolean)),
+    ];
+
+    const merged = [DEFAULT_ACCOUNT];
+    cloudNames.forEach((name) => {
+      if (name !== DEFAULT_ACCOUNT && !merged.includes(name)) {
+        merged.push(name);
+      }
+    });
+    accounts.forEach((name) => {
+      if (name !== DEFAULT_ACCOUNT && !merged.includes(name)) {
+        merged.push(name);
+      }
+    });
+
+    accounts = merged;
+    persistAccountList();
+
+    if (!accounts.includes(currentAccount)) {
+      setCurrentAccount(DEFAULT_ACCOUNT);
+    }
+
+    if (shouldAutoPickInitialWheel) {
+      const firstCloudAccount = accounts.find((name) => name !== DEFAULT_ACCOUNT);
+      if (firstCloudAccount) {
+        setCurrentAccount(firstCloudAccount);
+      }
+      shouldAutoPickInitialWheel = false;
+    }
+
+    pendingAccount = currentAccount;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchCloudItemsByName(accountName) {
+  const { data, error } = await window.supabaseClient
+    .from(CLOUD_TABLE)
+    .select('items')
+    .eq('account_name', accountName)
+    .single();
+  if (error || !data) {
+    return null;
+  }
+  const cloudItems = normalizeItems(data.items);
+  return cloudItems || null;
+}
+
+async function pullItemsFromCloud(accountName) {
+  if (!window.supabaseClient) {
+    return false;
+  }
+
+  try {
+    let cloudItems = await fetchCloudItemsByName(accountName);
+    if (!cloudItems && accountName === DEFAULT_ACCOUNT) {
+      cloudItems = await fetchCloudItemsByName(LEGACY_DEFAULT_ACCOUNT);
+    }
     if (!cloudItems) {
       return false;
     }
@@ -223,7 +303,7 @@ async function saveItems() {
 }
 
 function renderAccountState() {
-  accountInfo.textContent = `当前账号：${currentAccount}`;
+  accountInfo.textContent = `当前转盘：${currentAccount}`;
   pendingAccount = currentAccount;
   renderAccountPicker();
 }
@@ -266,15 +346,13 @@ async function registerAccount() {
   let hasCloudData = false;
   try {
     if (window.supabaseClient) {
-      const { data, error } = await window.supabaseClient
-        .from(CLOUD_TABLE)
-        .select('items')
-        .eq('account_name', name)
-        .single();
-
-      if (!error && data && normalizeItems(data.items)) {
+      let cloudItems = await fetchCloudItemsByName(name);
+      if (!cloudItems && name === DEFAULT_ACCOUNT) {
+        cloudItems = await fetchCloudItemsByName(LEGACY_DEFAULT_ACCOUNT);
+      }
+      if (cloudItems) {
         hasCloudData = true;
-        items = normalizeItems(data.items);
+        items = cloudItems;
         persistItemsForAccount(name, items);
       }
     }
@@ -302,6 +380,87 @@ async function registerAccount() {
   closeAccountModal();
 }
 
+function clearDragState() {
+  itemList.querySelectorAll('.dragging, .drag-over, .touch-over').forEach((el) => {
+    el.classList.remove('dragging', 'drag-over', 'touch-over');
+  });
+}
+
+function moveItem(fromIndex, toIndex) {
+  if (fromIndex === null || toIndex === null || fromIndex === toIndex) {
+    return;
+  }
+  if (fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) {
+    return;
+  }
+  const [moved] = items.splice(fromIndex, 1);
+  items.splice(toIndex, 0, moved);
+}
+
+function bindDragEvents(li, index, handle) {
+  li.draggable = true;
+  li.dataset.index = String(index);
+
+  li.addEventListener('dragstart', (e) => {
+    dragFromIndex = index;
+    li.classList.add('dragging');
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(index));
+    }
+  });
+
+  li.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    li.classList.add('drag-over');
+  });
+
+  li.addEventListener('dragleave', () => {
+    li.classList.remove('drag-over');
+  });
+
+  li.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const toIndex = index;
+    moveItem(dragFromIndex, toIndex);
+    dragFromIndex = null;
+    render();
+  });
+
+  li.addEventListener('dragend', () => {
+    dragFromIndex = null;
+    clearDragState();
+  });
+
+  handle.addEventListener('touchstart', () => {
+    touchDragIndex = index;
+    touchTargetIndex = index;
+    li.classList.add('dragging');
+  }, { passive: true });
+
+  handle.addEventListener('touchmove', (e) => {
+    if (touchDragIndex === null) {
+      return;
+    }
+    const point = e.touches[0];
+    const target = document.elementFromPoint(point.clientX, point.clientY)?.closest('.item');
+    clearDragState();
+    li.classList.add('dragging');
+    if (target && target.dataset.index) {
+      touchTargetIndex = Number.parseInt(target.dataset.index, 10);
+      target.classList.add('touch-over');
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  handle.addEventListener('touchend', () => {
+    moveItem(touchDragIndex, touchTargetIndex);
+    touchDragIndex = null;
+    touchTargetIndex = null;
+    render();
+  }, { passive: true });
+}
+
 function render() {
   itemList.innerHTML = '';
   const total = items.length;
@@ -309,6 +468,12 @@ function render() {
   items.forEach((item, index) => {
     const li = document.createElement('li');
     li.className = 'item';
+
+    const handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className = 'drag-handle';
+    handle.textContent = '≡';
+    handle.setAttribute('aria-label', '拖拽排序');
 
     const name = document.createElement('span');
     name.textContent = `${index + 1}. ${item}`;
@@ -329,7 +494,9 @@ function render() {
       render();
     });
 
-    li.append(name, prob, del);
+    bindDragEvents(li, index, handle);
+
+    li.append(handle, name, prob, del);
     itemList.appendChild(li);
   });
 }
@@ -388,7 +555,9 @@ document.addEventListener('keydown', (e) => {
 });
 
 (async () => {
+  await syncAccountsFromCloud();
   renderAccountState();
   await pullItemsFromCloud(currentAccount);
   render();
 })();
+

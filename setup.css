@@ -76,15 +76,44 @@ button {
 
 .item {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 24px 1fr auto auto;
   gap: 8px;
   align-items: center;
   padding: 8px;
   border-radius: 10px;
+  border: 1px solid transparent;
 }
 
 .item:nth-child(odd) {
   background: rgba(17, 17, 18, 0.03);
+}
+
+.item.dragging {
+  opacity: 0.5;
+}
+
+.item.drag-over,
+.item.touch-over {
+  border-color: rgba(0, 122, 255, 0.55);
+  background: rgba(0, 122, 255, 0.08);
+}
+
+.drag-handle {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(29, 29, 31, 0.55);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  touch-action: none;
+  cursor: grab;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
 }
 
 .badge {
@@ -296,4 +325,3 @@ button {
   background: rgba(255, 255, 255, 0.84);
   border: 1px solid rgba(255, 255, 255, 0.62);
 }
-
