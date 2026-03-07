@@ -249,6 +249,7 @@ button {
 
 .picker {
   position: relative;
+  z-index: 6;
 }
 
 .picker-btn {
@@ -294,6 +295,7 @@ button {
   backdrop-filter: blur(12px);
   max-height: 188px;
   overflow: auto;
+  z-index: 20;
 }
 
 .picker-item {
@@ -355,6 +357,23 @@ button {
   .actions {
     grid-template-columns: minmax(0, 1fr) 100px;
   }
+}
+
+
+
+
+.danger-btn {
+  margin-top: 10px;
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 59, 48, 0.26);
+  background: rgba(255, 59, 48, 0.08);
+  color: #c22017;
+  font-weight: 700;
+}
+
+.danger-btn:disabled {
+  opacity: 0.6;
 }
 
 

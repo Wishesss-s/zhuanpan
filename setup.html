@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>设置奖项</title>
   <meta name="theme-color" content="#f5f5f7" />
-  <link rel="stylesheet" href="./setup.css?v=20260307-5" />
+  <link rel="stylesheet" href="./setup.css?v=20260307-7" />
 </head>
 <body>
   <main class="setup-app">
@@ -57,18 +57,19 @@
         <input id="newAccountInput" type="text" placeholder="输入转盘名称" maxlength="24" />
         <button id="registerAccountBtn" type="button">新建转盘</button>
       </div>
+
+      <div class="account-row">
+        <input id="renameWheelInput" type="text" placeholder="输入新名称" maxlength="24" />
+        <button id="renameWheelBtn" type="button">修改</button>
+      </div>
+
+      <button id="deleteWheelBtn" class="danger-btn" type="button">删除当前转盘</button>
     </section>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./supabase-client.js?v=20260307-4"></script>
-  <script src="./setup.js?v=20260307-4"></script>
+  <script src="./supabase-client.js?v=20260307-7"></script>
+  <script src="./setup.js?v=20260307-7"></script>
 </body>
 </html>
-
-
-
-
-
-
 

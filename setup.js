@@ -23,6 +23,9 @@ const accountPickerList = document.getElementById('accountPickerList');
 const switchAccountBtn = document.getElementById('switchAccountBtn');
 const newAccountInput = document.getElementById('newAccountInput');
 const registerAccountBtn = document.getElementById('registerAccountBtn');
+const renameWheelInput = document.getElementById('renameWheelInput');
+const renameWheelBtn = document.getElementById('renameWheelBtn');
+const deleteWheelBtn = document.getElementById('deleteWheelBtn');
 const accountInfo = document.getElementById('accountInfo');
 
 let accounts = loadAccountList();
@@ -30,7 +33,6 @@ let currentAccount = loadCurrentAccount();
 let pendingAccount = currentAccount;
 let items = loadItemsForAccount(currentAccount);
 const initialSavedAccount = normalizeAccountName(localStorage.getItem(ACCOUNT_KEY));
-let shouldAutoPickInitialWheel = !initialSavedAccount;
 
 let dragFromIndex = null;
 let touchDragIndex = null;
@@ -114,6 +116,16 @@ function loadItemsForAccount(accountName) {
 
 function persistItemsForAccount(accountName, accountItems) {
   localStorage.setItem(storageKeyForAccount(accountName), JSON.stringify(accountItems));
+}
+
+function setWheelActionButtonsState() {
+  const isDefault = currentAccount === DEFAULT_ACCOUNT;
+
+  deleteWheelBtn.disabled = isDefault;
+  deleteWheelBtn.textContent = isDefault ? '默认转盘不可删除' : '删除当前转盘';
+
+  renameWheelBtn.disabled = isDefault;
+  renameWheelBtn.textContent = '修改';
 }
 
 async function openAccountModal() {
@@ -213,12 +225,11 @@ async function syncAccountsFromCloud() {
       setCurrentAccount(DEFAULT_ACCOUNT);
     }
 
-    if (shouldAutoPickInitialWheel) {
+    if (!initialSavedAccount) {
       const firstCloudAccount = accounts.find((name) => name !== DEFAULT_ACCOUNT);
       if (firstCloudAccount) {
         setCurrentAccount(firstCloudAccount);
       }
-      shouldAutoPickInitialWheel = false;
     }
 
     pendingAccount = currentAccount;
@@ -306,6 +317,7 @@ function renderAccountState() {
   accountInfo.textContent = `当前转盘：${currentAccount}`;
   pendingAccount = currentAccount;
   renderAccountPicker();
+  setWheelActionButtonsState();
 }
 
 async function switchAccount() {
@@ -321,6 +333,124 @@ async function switchAccount() {
   await pullItemsFromCloud(currentAccount);
   render();
   renderAccountState();
+  closeAccountModal();
+}
+
+async function renameCurrentWheel() {
+  const oldName = currentAccount;
+  if (oldName === DEFAULT_ACCOUNT) {
+    setWheelActionButtonsState();
+    return;
+  }
+
+  const newName = normalizeAccountName(renameWheelInput.value);
+  if (!newName) {
+    renameWheelInput.focus();
+    return;
+  }
+
+  if (newName === oldName) {
+    renameWheelInput.value = '';
+    closeAccountModal();
+    return;
+  }
+
+  if (accounts.includes(newName)) {
+    window.alert('该转盘名称已存在，请换一个名称。');
+    renameWheelInput.focus();
+    return;
+  }
+
+  renameWheelBtn.disabled = true;
+
+  const currentItems = [...items];
+
+  localStorage.setItem(storageKeyForAccount(newName), JSON.stringify(currentItems));
+  localStorage.removeItem(storageKeyForAccount(oldName));
+
+  accounts = accounts.map((name) => (name === oldName ? newName : name));
+  persistAccountList();
+
+  setCurrentAccount(newName);
+  pendingAccount = newName;
+
+  let cloudOk = true;
+  if (window.supabaseClient) {
+    try {
+      const payload = {
+        account_name: newName,
+        items: currentItems,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await window.supabaseClient
+        .from(CLOUD_TABLE)
+        .upsert(payload, { onConflict: 'account_name' });
+
+      if (error) {
+        throw error;
+      }
+
+      await window.supabaseClient
+        .from(CLOUD_TABLE)
+        .delete()
+        .eq('account_name', oldName);
+    } catch {
+      cloudOk = false;
+    }
+  }
+
+  render();
+  renderAccountState();
+  renameWheelInput.value = '';
+  renameWheelBtn.disabled = false;
+
+  if (!cloudOk) {
+    window.alert('已在本机重命名，云端同步失败，请稍后再试。');
+  }
+
+  closeAccountModal();
+}
+
+async function deleteCurrentWheel() {
+  const target = currentAccount;
+  if (target === DEFAULT_ACCOUNT) {
+    setWheelActionButtonsState();
+    return;
+  }
+
+  const ok = window.confirm(`确定删除转盘“${target}”吗？此操作不可恢复。`);
+  if (!ok) {
+    return;
+  }
+
+  deleteWheelBtn.disabled = true;
+
+  try {
+    if (window.supabaseClient) {
+      await window.supabaseClient
+        .from(CLOUD_TABLE)
+        .delete()
+        .eq('account_name', target);
+    }
+  } catch {
+    // 云端删除失败时仍执行本地删除，避免当前设备继续看到
+  }
+
+  localStorage.removeItem(storageKeyForAccount(target));
+  accounts = accounts.filter((name) => name !== target);
+  if (!accounts.includes(DEFAULT_ACCOUNT)) {
+    accounts.unshift(DEFAULT_ACCOUNT);
+  }
+  persistAccountList();
+
+  setCurrentAccount(DEFAULT_ACCOUNT);
+  items = loadItemsForAccount(currentAccount);
+  await pullItemsFromCloud(currentAccount);
+  render();
+  renderAccountState();
+
+  deleteWheelBtn.disabled = false;
   closeAccountModal();
 }
 
@@ -533,6 +663,8 @@ accountBackdrop.addEventListener('click', closeAccountModal);
 accountPickerBtn.addEventListener('click', togglePicker);
 switchAccountBtn.addEventListener('click', switchAccount);
 registerAccountBtn.addEventListener('click', registerAccount);
+renameWheelBtn.addEventListener('click', renameCurrentWheel);
+deleteWheelBtn.addEventListener('click', deleteCurrentWheel);
 labelInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     addItems();
@@ -541,6 +673,11 @@ labelInput.addEventListener('keydown', (e) => {
 newAccountInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     registerAccount();
+  }
+});
+renameWheelInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    renameCurrentWheel();
   }
 });
 document.addEventListener('click', (e) => {
