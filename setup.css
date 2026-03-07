@@ -47,8 +47,21 @@ h1 {
 
 .row {
   display: grid;
-  grid-template-columns: 1fr 80px 74px;
+  grid-template-columns: minmax(0, 1fr) 80px 74px;
   gap: 8px;
+}
+
+.row > *,
+.actions > *,
+.account-row > * {
+  min-width: 0;
+}
+
+.item > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 input,
@@ -76,7 +89,7 @@ button {
 
 .item {
   display: grid;
-  grid-template-columns: 24px 1fr auto auto;
+  grid-template-columns: 24px minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
   padding: 8px;
@@ -130,7 +143,7 @@ button {
 .actions {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: 1fr 110px;
+  grid-template-columns: minmax(0, 1fr) 110px;
   gap: 8px;
 }
 
@@ -218,7 +231,7 @@ button {
 
 .account-row {
   display: grid;
-  grid-template-columns: 1fr 92px;
+  grid-template-columns: minmax(0, 1fr) 92px;
   gap: 8px;
 }
 
@@ -324,4 +337,14 @@ button {
   color: #1d1d1f;
   background: rgba(255, 255, 255, 0.84);
   border: 1px solid rgba(255, 255, 255, 0.62);
+}
+
+@media (max-width: 390px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) 74px 68px;
+  }
+
+  .actions {
+    grid-template-columns: minmax(0, 1fr) 100px;
+  }
 }
